@@ -30,7 +30,7 @@ We present our NeurIPS 2025 paper Wan-Move, a simple and scalable motion-control
 🙌 We’re glad to see Wan-Move being tested in real-world videos by many creators and users.
 
 ## 🔥 Latest News!!
-
+* Jan 05, 2026: 👋 We've uploaded first-frame mask annotations to enable evaluation of mask-driven motion-control models. Check [MoveBench](https://huggingface.co/datasets/Ruihang/MoveBench) for details.
 * Dec 15, 2025: 👋 We've released a [local Gradio demo](#gradio-demo) for interactive trajectory drawing and video generation.
 * Dec 10, 2025: 👋 We've released the [inference code](#quickstart), [model weights](https://huggingface.co/Ruihang/Wan-Move-14B-480P), and [MoveBench](https://huggingface.co/datasets/Ruihang/MoveBench) of Wan-Move.
 * Sep 18, 2025: 👋 Wan-Move has been accepted by NeurIPS 2025! 🎉🎉🎉
@@ -209,12 +209,10 @@ If you find our work helpful, please cite us.
 
 ```
 @article{chu2025wan,
-      title={Wan-Move: Motion-controllable Video Generation via Latent Trajectory Guidance},
-      author={Ruihang Chu and Yefei He and Zhekai Chen and Shiwei Zhang and Xiaogang Xu and Bin Xia and Dingdong Wang and Hongwei Yi and Xihui Liu and Hengshuang Zhao and Yu Liu and Yingya Zhang and Yujiu Yang},
-      year={2025},
-      eprint={2512.08765},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
+  title={Wan-move: Motion-controllable video generation via latent trajectory guidance},
+  author={Chu, Ruihang and He, Yefei and Chen, Zhekai and Zhang, Shiwei and Xu, Xiaogang and Xia, Bin and Wang, Dingdong and Yi, Hongwei and Liu, Xihui and Zhao, Hengshuang and others},
+  journal={arXiv preprint arXiv:2512.08765},
+  year={2025}
 }
 ```
 

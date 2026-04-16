@@ -117,10 +117,9 @@ export TRITON_CACHE_DIR=$WAN_MOVE_CACHE/triton
 export WARP_CACHE_DIR=$WAN_MOVE_CACHE/warp
 export XDG_CACHE_HOME=$WAN_MOVE_CACHE/tmp
 export TMPDIR=$WAN_MOVE_CACHE/tmp
-
-export PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
-export PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cu121"
 ```
+
+`pip` 默认走官方源即可，这里不再要求设置任何镜像相关环境变量。
 
 如果你所在环境访问 GitHub 不稳定，再补上：
 
@@ -176,55 +175,43 @@ export PIP_PROGRESS_BAR=off
 export PIP_DISABLE_PIP_VERSION_CHECK=1
 ```
 
-然后把大包先下载到本地：
+先基于仓库的 `requirements.txt` 生成一份运行时依赖清单。这里显式排除：
+
+- `torch`
+- `torchvision`
+- `flash_attn`
+
+原因：
+
+- `torch` 和 `torchvision` 需要单独从 PyTorch 官方 wheel 源安装
+- `flash_attn` 需要单独处理，不能混在普通依赖安装里
+
+```bash
+grep -v -E '^(torch|torchvision|flash_attn)([><=].*)?$' requirements.txt > $WAN_MOVE_CACHE/requirements.runtime.txt
+printf '%s\n' scipy pillow 'huggingface_hub[cli]' >> $WAN_MOVE_CACHE/requirements.runtime.txt
+```
+
+这样做比手写一长串包名更稳，因为它直接继承 repo 当前的版本约束，只额外补了代码里实际需要但未写入 `requirements.txt` 的三个包。
+
+然后把这些 wheel 下载到本地：
 
 ```bash
 python -m pip download -d $WAN_MOVE_CACHE/wheels \
-  pillow \
-  scipy \
-  opencv-python \
-  gradio \
-  transformers \
-  diffusers \
-  tokenizers \
-  accelerate \
-  imageio-ffmpeg \
-  lpips \
-  pytorch_fid
+  -r $WAN_MOVE_CACHE/requirements.runtime.txt
 ```
 
 下载完成后，再优先从本地 wheel 安装：
 
 ```bash
 python -m pip install --no-index --find-links=$WAN_MOVE_CACHE/wheels \
-  pillow \
-  scipy \
-  opencv-python \
-  gradio \
-  transformers \
-  diffusers \
-  tokenizers \
-  accelerate \
-  imageio-ffmpeg \
-  lpips \
-  pytorch_fid
+  -r $WAN_MOVE_CACHE/requirements.runtime.txt
 ```
 
 如果某些包没被完整下载，或者本地 wheel 不全，再允许回退到在线源：
 
 ```bash
 python -m pip install --find-links=$WAN_MOVE_CACHE/wheels \
-  pillow \
-  scipy \
-  opencv-python \
-  gradio \
-  transformers \
-  diffusers \
-  tokenizers \
-  accelerate \
-  imageio-ffmpeg \
-  lpips \
-  pytorch_fid
+  -r $WAN_MOVE_CACHE/requirements.runtime.txt
 ```
 
 推荐做法：
@@ -237,11 +224,13 @@ python -m pip install --find-links=$WAN_MOVE_CACHE/wheels \
 
 ### 7.2 安装 PyTorch
 
-README 只要求 `torch>=2.4.0`。对 A100-80G，推荐直接使用 CUDA 12.1 官方轮子。
+README 只要求 `torch>=2.4.0`。对 A100-80G，推荐直接使用 PyTorch 官方 CUDA 12.1 轮子。
 
 ```bash
 python -m pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu121
 ```
+
+这里的 `--index-url` 是 PyTorch 官方 wheel 源，不是第三方镜像；文档不再依赖额外的全局 pip 镜像配置。
 
 安装后立刻验证：
 
@@ -258,44 +247,33 @@ PY
 
 ### 7.3 安装主依赖
 
-这里不直接依赖 `requirements.txt` 的原因是：
+这里不直接执行 `pip install -r requirements.txt` 的原因是：
 
 - `flash_attn` 经常失败
 - `scipy` 和 `Pillow` 在代码里实际使用，但 requirements 未显式写入
 - 大体积 wheel 在网络不稳定时容易下载很慢或超时
+- `torch` 和 `torchvision` 需要从 PyTorch 官方 wheel 源单独安装
 
-先装不容易出问题的部分：
+但普通运行时依赖仍然应当尽量继承 repo 自己的版本约束，而不是在文档里手写另一套包列表。
+
+先生成运行时依赖文件：
 
 ```bash
-python -m pip install \
-  opencv-python>=4.9.0.80 \
-  diffusers>=0.31.0 \
-  transformers>=4.49.0 \
-  tokenizers>=0.20.3 \
-  accelerate>=1.1.1 \
-  tqdm imageio easydict ftfy dashscope imageio-ffmpeg \
-  gradio>=5.0.0 \
-  numpy>=1.23.5,<2 \
-  pytorch_fid lpips \
-  scipy pillow \
-  huggingface_hub[cli]
+grep -v -E '^(torch|torchvision|flash_attn)([><=].*)?$' requirements.txt > $WAN_MOVE_CACHE/requirements.runtime.txt
+printf '%s\n' scipy pillow 'huggingface_hub[cli]' >> $WAN_MOVE_CACHE/requirements.runtime.txt
+```
+
+然后安装这些不容易出问题的部分：
+
+```bash
+python -m pip install -r $WAN_MOVE_CACHE/requirements.runtime.txt
 ```
 
 如果你前面已经把 wheel 预下载到了 `$WAN_MOVE_CACHE/wheels`，更建议这样安装：
 
 ```bash
 python -m pip install --find-links=$WAN_MOVE_CACHE/wheels \
-  opencv-python>=4.9.0.80 \
-  diffusers>=0.31.0 \
-  transformers>=4.49.0 \
-  tokenizers>=0.20.3 \
-  accelerate>=1.1.1 \
-  tqdm imageio easydict ftfy dashscope imageio-ffmpeg \
-  gradio>=5.0.0 \
-  numpy>=1.23.5,<2 \
-  pytorch_fid lpips \
-  scipy pillow \
-  huggingface_hub[cli]
+  -r $WAN_MOVE_CACHE/requirements.runtime.txt
 ```
 
 ### 7.4 安装 `flash-attn`
@@ -767,18 +745,9 @@ export TMPDIR=$WAN_MOVE_CACHE/tmp
 cd $WAN_MOVE_ROOT
 python -m pip install --upgrade pip setuptools wheel ninja packaging
 python -m pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu121
-python -m pip install \
-  opencv-python>=4.9.0.80 \
-  diffusers>=0.31.0 \
-  transformers>=4.49.0 \
-  tokenizers>=0.20.3 \
-  accelerate>=1.1.1 \
-  tqdm imageio easydict ftfy dashscope imageio-ffmpeg \
-  gradio>=5.0.0 \
-  numpy>=1.23.5,<2 \
-  pytorch_fid lpips \
-  scipy pillow \
-  huggingface_hub[cli]
+grep -v -E '^(torch|torchvision|flash_attn)([><=].*)?$' requirements.txt > $WAN_MOVE_CACHE/requirements.runtime.txt
+printf '%s\n' scipy pillow 'huggingface_hub[cli]' >> $WAN_MOVE_CACHE/requirements.runtime.txt
+python -m pip install -r $WAN_MOVE_CACHE/requirements.runtime.txt
 python -m pip install flash-attn --no-build-isolation
 python -m pip install -e . -e .[dev]
 ```

@@ -152,6 +152,89 @@ cd $WAN_MOVE_ROOT
 python -m pip install --upgrade pip setuptools wheel ninja packaging
 ```
 
+### 7.1.1 如果下载 `.whl` 很慢，先做本地 wheel 缓存
+
+在共享服务器上，`pillow`、`opencv-python`、`transformers`、`gradio` 这类包的 wheel 可能很大，直接 `pip install` 往往会变成：
+
+- 下载很慢
+- 中途超时
+- 失败后重新从头下载
+
+这个问题不要靠反复重试解决。更稳妥的方式是先把 wheel 下载到缓存目录，再从本地安装。
+
+先准备 wheel 缓存目录：
+
+```bash
+mkdir -p $WAN_MOVE_CACHE/wheels
+```
+
+建议先设置下载相关参数：
+
+```bash
+export PIP_DEFAULT_TIMEOUT=120
+export PIP_PROGRESS_BAR=off
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+```
+
+然后把大包先下载到本地：
+
+```bash
+python -m pip download -d $WAN_MOVE_CACHE/wheels \
+  pillow \
+  scipy \
+  opencv-python \
+  gradio \
+  transformers \
+  diffusers \
+  tokenizers \
+  accelerate \
+  imageio-ffmpeg \
+  lpips \
+  pytorch_fid
+```
+
+下载完成后，再优先从本地 wheel 安装：
+
+```bash
+python -m pip install --no-index --find-links=$WAN_MOVE_CACHE/wheels \
+  pillow \
+  scipy \
+  opencv-python \
+  gradio \
+  transformers \
+  diffusers \
+  tokenizers \
+  accelerate \
+  imageio-ffmpeg \
+  lpips \
+  pytorch_fid
+```
+
+如果某些包没被完整下载，或者本地 wheel 不全，再允许回退到在线源：
+
+```bash
+python -m pip install --find-links=$WAN_MOVE_CACHE/wheels \
+  pillow \
+  scipy \
+  opencv-python \
+  gradio \
+  transformers \
+  diffusers \
+  tokenizers \
+  accelerate \
+  imageio-ffmpeg \
+  lpips \
+  pytorch_fid
+```
+
+推荐做法：
+
+1. 先 `pip download` 到 `$WAN_MOVE_CACHE/wheels`
+2. 安装时优先使用 `--find-links=$WAN_MOVE_CACHE/wheels`
+3. 大包只下载一次，后续重装环境直接复用
+
+如果你们服务器多人共用网络出口，这种方式会比每个人都在线拉一遍稳定得多。
+
 ### 7.2 安装 PyTorch
 
 README 只要求 `torch>=2.4.0`。对 A100-80G，推荐直接使用 CUDA 12.1 官方轮子。
@@ -179,11 +262,29 @@ PY
 
 - `flash_attn` 经常失败
 - `scipy` 和 `Pillow` 在代码里实际使用，但 requirements 未显式写入
+- 大体积 wheel 在网络不稳定时容易下载很慢或超时
 
 先装不容易出问题的部分：
 
 ```bash
 python -m pip install \
+  opencv-python>=4.9.0.80 \
+  diffusers>=0.31.0 \
+  transformers>=4.49.0 \
+  tokenizers>=0.20.3 \
+  accelerate>=1.1.1 \
+  tqdm imageio easydict ftfy dashscope imageio-ffmpeg \
+  gradio>=5.0.0 \
+  numpy>=1.23.5,<2 \
+  pytorch_fid lpips \
+  scipy pillow \
+  huggingface_hub[cli]
+```
+
+如果你前面已经把 wheel 预下载到了 `$WAN_MOVE_CACHE/wheels`，更建议这样安装：
+
+```bash
+python -m pip install --find-links=$WAN_MOVE_CACHE/wheels \
   opencv-python>=4.9.0.80 \
   diffusers>=0.31.0 \
   transformers>=4.49.0 \

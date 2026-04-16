@@ -60,6 +60,7 @@
 执行：
 
 ```bash
+export NAME="Zhengwei"  # 替换成你的名字或标识
 mkdir -p /cache/$NAME/workspace
 mkdir -p /cache/$NAME/Wan-Move/{conda_envs,hf,torch,torch_extensions,triton,warp,tmp,logs,wheels,src,ckpts,models,outputs}
 cd /cache/$NAME/workspace
@@ -105,7 +106,7 @@ conda activate /cache/$NAME/Wan-Move/conda_envs/wan-move
 不要急着写入 `.bashrc`。先按 [docs/DEPLOYMENT_TIPS.md](/home/gzwlinux/vscode/gitProject/Wan-Move/docs/DEPLOYMENT_TIPS.md) 的建议，在当前终端导出。
 
 ```bash
-export NAME=<your_name>
+export NAME="Zhengwei"  # 替换成你的名字或标识
 export WAN_MOVE_ROOT=/cache/$NAME/workspace/Wan-Move
 export WAN_MOVE_CACHE=/cache/$NAME/Wan-Move
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -113,23 +114,70 @@ def read_video_frame(video_path: str | Path, frame_idx: int) -> np.ndarray:
     return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
 
-def write_rgb_video(path: str | Path, frames: list[np.ndarray], fps: float) -> None:
+def write_rgb_video(path: str | Path, frames: list[np.ndarray], fps: float) -> dict[str, Any]:
     if not frames:
         raise ValueError("No frames to write.")
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     height, width = frames[0].shape[:2]
-    writer = cv2.VideoWriter(
-        str(path),
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        fps,
-        (width, height),
-    )
-    if not writer.isOpened():
-        raise RuntimeError(f"Failed to create video writer: {path}")
-    for frame in frames:
-        writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
-    writer.release()
+    attempted: list[dict[str, Any]] = []
+
+    for codec in ("mp4v", "avc1", "MJPG"):
+        writer = cv2.VideoWriter(
+            str(path),
+            cv2.VideoWriter_fourcc(*codec),
+            fps,
+            (width, height),
+        )
+        opened = writer.isOpened()
+        attempted.append({"backend": "opencv", "codec": codec, "opened": bool(opened)})
+        if not opened:
+            writer.release()
+            continue
+        for frame in frames:
+            writer.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+        writer.release()
+        if path.exists() and path.stat().st_size > 0:
+            return {"backend": "opencv", "codec": codec, "path": str(path), "attempted": attempted}
+
+    try:
+        import imageio.v2 as imageio
+
+        imageio.mimsave(str(path), frames, fps=fps)
+        if path.exists() and path.stat().st_size > 0:
+            attempted.append({"backend": "imageio", "codec": "default", "opened": True})
+            return {"backend": "imageio", "codec": "default", "path": str(path), "attempted": attempted}
+    except Exception as exc:  # pragma: no cover - diagnostic path
+        attempted.append({"backend": "imageio", "codec": "default", "opened": False, "error": str(exc)})
+
+    raise RuntimeError(f"Failed to create video writer for {path}. Attempts: {attempted}")
+
+
+def check_video_write_capability(output_path: str | Path, frame_shape: tuple[int, int], fps: float = 16.0) -> dict[str, Any]:
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    height, width = frame_shape
+    frames = [
+        np.full((height, width, 3), 245, dtype=np.uint8),
+        np.full((height, width, 3), 235, dtype=np.uint8),
+    ]
+    temp_path = output_path.parent / f"{output_path.stem}_codec_probe.mp4"
+    try:
+        result = write_rgb_video(temp_path, frames, fps=fps)
+        return {
+            "ok": True,
+            "writer_backend": result.get("backend"),
+            "codec": result.get("codec"),
+            "path": str(temp_path),
+            "attempted": result.get("attempted", []),
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "error": str(exc),
+        }
+    finally:
+        temp_path.unlink(missing_ok=True)
 
 
 def alpha_blend(base_rgb: np.ndarray, overlay_rgba: np.ndarray, x: int, y: int) -> np.ndarray:
@@ -184,4 +232,3 @@ def ffmpeg_available() -> bool:
         return True
     except FileNotFoundError:
         return False
-

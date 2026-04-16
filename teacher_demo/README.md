@@ -49,6 +49,12 @@ python teacher_demo/scripts/02_generate_wanmove_tracks.py \
   --targets teacher_demo/work/targets/targets.json
 ```
 
+Track preview diagnostics will be written to:
+
+```text
+teacher_demo/work/previews/track_preview_diagnostics.json
+```
+
 If you only want the tracks and preview artifacts:
 
 ```bash
@@ -56,6 +62,16 @@ python teacher_demo/scripts/02_generate_wanmove_tracks.py \
   --config teacher_demo/configs/demo_config.yaml \
   --targets teacher_demo/work/targets/targets.json \
   --preview_only
+```
+
+3.1 Check track legality and reliability:
+
+```bash
+python teacher_demo/scripts/07_check_track_reliability.py \
+  --config teacher_demo/configs/demo_config.yaml \
+  --tracks teacher_demo/work/tracks/tracks.npy \
+  --visibility teacher_demo/work/tracks/visibility.npy \
+  --output teacher_demo/work/tracks/track_reliability_report.json
 ```
 
 4. Run Wan-Move:
@@ -96,6 +112,8 @@ python teacher_demo/scripts/06_make_preview_grid.py \
 - `teacher_demo/work/tracks/visibility.npy`
 - `teacher_demo/work/previews/track_preview.png`
 - `teacher_demo/work/previews/track_preview.mp4`
+- `teacher_demo/work/previews/track_preview_diagnostics.json`
+- `teacher_demo/work/tracks/track_reliability_report.json`
 - `teacher_demo/work/wanmove_outputs/teacher_motion.mp4`
 - `teacher_demo/work/foreground/frames_rgba/*.png`
 - `teacher_demo/work/composite/final_demo.mp4`

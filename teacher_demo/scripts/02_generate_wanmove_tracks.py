@@ -15,14 +15,15 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from teacher_demo.scripts._common import (
+    check_video_write_capability,
     ensure_workdirs,
     interpolate_segment,
     load_config,
     load_json,
     repo_path,
     resample_points,
+    save_json,
     write_rgb_video,
-    WORK_ROOT,
 )
 
 
@@ -80,7 +81,7 @@ def smooth_sequence(initial_tip: np.ndarray, targets: list[np.ndarray], frame_nu
     return resample_points(tip_dense, frame_num)
 
 
-def draw_track_preview(base_image: np.ndarray, tracks: np.ndarray, visibility: np.ndarray, output_png: Path, output_mp4: Path) -> None:
+def draw_track_preview(base_image: np.ndarray, tracks: np.ndarray, visibility: np.ndarray, output_png: Path, output_mp4: Path) -> dict[str, object]:
     frame_num = tracks.shape[0]
     preview_frames: list[np.ndarray] = []
     composite = Image.fromarray(base_image.copy()).convert("RGB")
@@ -105,7 +106,7 @@ def draw_track_preview(base_image: np.ndarray, tracks: np.ndarray, visibility: n
             x, y = trail[-1]
             draw.ellipse((x - 7, y - 7, x + 7, y + 7), fill=COLOR_MAP[track_idx % len(COLOR_MAP)])
         preview_frames.append(np.array(frame_img))
-    write_rgb_video(output_mp4, preview_frames, fps=16.0)
+    return write_rgb_video(output_mp4, preview_frames, fps=16.0)
 
 
 def main() -> None:
@@ -222,15 +223,32 @@ def main() -> None:
     visibility_batched = visibility[None, ...]
     np.save(output_dir / "tracks.npy", tracks_batched)
     np.save(output_dir / "visibility.npy", visibility_batched)
-    draw_track_preview(image_np, tracks, visibility, preview_dir / "track_preview.png", preview_dir / "track_preview.mp4")
+
+    preview_png = preview_dir / "track_preview.png"
+    preview_mp4 = preview_dir / "track_preview.mp4"
+    preview_diag = {"ok": True}
+    try:
+        writer_result = draw_track_preview(image_np, tracks, visibility, preview_png, preview_mp4)
+        preview_diag.update(writer_result)
+    except Exception as exc:
+        preview_diag = {
+            "ok": False,
+            "error": str(exc),
+            "writer_probe": check_video_write_capability(preview_mp4, (height, width), fps=16.0),
+        }
+
+    save_json(preview_dir / "track_preview_diagnostics.json", preview_diag)
 
     print(f"[02] Saved tracks to {output_dir / 'tracks.npy'}")
     print(f"[02] Saved visibility to {output_dir / 'visibility.npy'}")
-    print(f"[02] Saved previews to {preview_dir}")
+    print(f"[02] Saved preview image to {preview_png}")
+    if preview_diag.get("ok"):
+        print(f"[02] Saved preview video to {preview_mp4}")
+    else:
+        print(f"[02] Preview video generation failed; see {preview_dir / 'track_preview_diagnostics.json'}")
     if args.preview_only:
         print("[02] --preview_only enabled; Wan-Move inference is not run by this script.")
 
 
 if __name__ == "__main__":
     main()
-

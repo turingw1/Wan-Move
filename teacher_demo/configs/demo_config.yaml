@@ -5,9 +5,9 @@ output_size: "480*832"
 frame_num: 81
 prompt: "A cute cartoon teacher naturally pointing at lecture slides with a pointer stick, stable body, clean white background, smooth arm and stick motion."
 teacher_keypoints:
-  stick_tip_initial: [751, 224]
-  stick_mid_upper: [704, 353]
-  stick_mid_lower: [666, 475]
+  stick_tip_initial: [780, 250]
+  stick_mid_upper: [730, 366]
+  stick_mid_lower: [670, 482]
   stick_handle: [625, 578]
   right_hand: [621, 557]
   right_elbow_anchor: [574, 570]
@@ -25,3 +25,10 @@ overlay:
   position: bottom_right
   height_ratio: 0.45
   margin_ratio: 0.03
+trajectory_demo:
+  mode: straight_line_emphasis
+  tip_end: [815, 215]
+  tap_forward_px: 12
+  tap_count: 2
+  tap_hold_frames: 4
+  tap_move_frames: 4

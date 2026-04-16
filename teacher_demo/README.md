@@ -34,6 +34,50 @@ ${WAN_MOVE_CACHE}/models/Wan-Move-14B-480P
 
 for `ckpt_dir`, so `WAN_MOVE_CACHE` must be set in the shell before running the scripts.
 
+## Batch Motion Sweep
+
+For teacher-motion-only evaluation, use the batch sweep script:
+
+```bash
+python teacher_demo/scripts/08_batch_motion_sweep.py \
+  --config teacher_demo/configs/demo_config.yaml \
+  --output-root /temp/Zhengwei/Wan-move
+```
+
+This prepares categorized motion cases such as:
+
+- `small_slow`
+- `small_fast`
+- `large_slow`
+- `large_fast`
+- `body_motion`
+- `emphasis`
+
+Each case gets its own folder under `/temp/Zhengwei/Wan-move/<category>/<case_id>/` with:
+
+- `tracks.npy`
+- `visibility.npy`
+- `track_preview.png`
+- `track_preview.mp4`
+- `track_schematic.png`
+- `case_config.json`
+- `run_wanmove.sh`
+
+To also run Wan-Move and generate the white-background teacher videos automatically:
+
+```bash
+python teacher_demo/scripts/08_batch_motion_sweep.py \
+  --config teacher_demo/configs/demo_config.yaml \
+  --output-root /temp/Zhengwei/Wan-move \
+  --run-inference \
+  --overwrite
+```
+
+This will also create:
+
+- `/temp/Zhengwei/Wan-move/batch_manifest.json`
+- `/temp/Zhengwei/Wan-move/run_all_wanmove_cases.sh`
+
 ## Expected Inputs
 
 - `teacher_with_stick.png`

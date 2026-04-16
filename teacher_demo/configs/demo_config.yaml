@@ -1,0 +1,28 @@
+input_image: teacher_with_stick.png
+input_video: intro.mp4
+ckpt_dir: ./Wan-Move-14B-480P
+output_size: "480*832"
+frame_num: 81
+prompt: "A cute cartoon teacher naturally pointing at lecture slides with a pointer stick, stable body, clean white background, smooth arm and stick motion."
+teacher_keypoints:
+  stick_tip_initial: [751, 224]
+  stick_mid_upper: [704, 353]
+  stick_mid_lower: [666, 475]
+  stick_handle: [625, 578]
+  right_hand: [621, 557]
+  right_elbow_anchor: [574, 570]
+  body_anchor: [468, 600]
+motion:
+  hold_frames: 12
+  move_frames: 35
+  emphasize_frames: 22
+  settle_frames: 12
+  max_tip_shift_px: 160
+  hand_follow_ratio: 0.25
+  elbow_follow_ratio: 0.10
+  jitter_px: 8
+overlay:
+  position: bottom_right
+  height_ratio: 0.45
+  margin_ratio: 0.03
+

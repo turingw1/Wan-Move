@@ -273,6 +273,7 @@ def write_case_run_script(case_dir: Path, config: dict[str, object], image_path:
     script_path = case_dir / "run_wanmove.sh"
     script = f"""#!/usr/bin/env bash
 set -euo pipefail
+export PYTHONUNBUFFERED=1
 
 REPO_ROOT={shlex.quote(str(REPO_ROOT))}
 cd "$REPO_ROOT"
@@ -305,11 +306,26 @@ python generate.py \\
 
 def maybe_run_case(case_dir: Path) -> dict[str, object]:
     cmd = ["bash", str(case_dir / "run_wanmove.sh")]
-    result = subprocess.run(cmd, cwd=str(REPO_ROOT), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     log_path = case_dir / "wanmove_run.log"
-    log_path.write_text(result.stdout, encoding="utf-8")
+    lines: list[str] = []
+    process = subprocess.Popen(
+        cmd,
+        cwd=str(REPO_ROOT),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
+    )
+    assert process.stdout is not None
+    case_name = case_dir.name
+    with log_path.open("w", encoding="utf-8") as log_file:
+        for line in process.stdout:
+            lines.append(line)
+            log_file.write(line)
+            print(f"[08][{case_name}] {line.rstrip()}", flush=True)
+    returncode = process.wait()
     return {
-        "returncode": result.returncode,
+        "returncode": returncode,
         "log_path": str(log_path),
         "video_exists": (case_dir / "teacher_motion.mp4").exists(),
     }
@@ -350,7 +366,8 @@ def main() -> None:
 
     run_all_lines = ["#!/usr/bin/env bash", "set -euo pipefail", f"cd {shlex.quote(str(REPO_ROOT))}"]
 
-    for case in cases:
+    total_cases = len(cases)
+    for idx, case in enumerate(cases, start=1):
         category_dir = output_root / case.category
         case_dir = category_dir / case.case_id
         if case_dir.exists() and not args.overwrite:
@@ -396,24 +413,31 @@ def main() -> None:
         }
 
         if args.run_inference:
+            print(f"[08] Running inference for case {idx}/{total_cases}: {case.category}/{case.case_id}", flush=True)
             case_info["inference"] = maybe_run_case(case_dir)
+            print(
+                f"[08] Finished case {idx}/{total_cases}: {case.category}/{case.case_id} "
+                f"(returncode={case_info['inference']['returncode']}, "
+                f"video_exists={case_info['inference']['video_exists']})",
+                flush=True,
+            )
 
         manifest["cases"].append(case_info)
         manifest["categories"].setdefault(case.category, []).append(case.case_id)
-        print(f"[08] Prepared {case.category}/{case.case_id}")
+        print(f"[08] Prepared {case.category}/{case.case_id}", flush=True)
 
     run_all_path = output_root / "run_all_wanmove_cases.sh"
     run_all_path.write_text("\n".join(run_all_lines) + "\n", encoding="utf-8")
     run_all_path.chmod(0o755)
     save_json(output_root / "batch_manifest.json", manifest)
 
-    print(f"[08] Saved batch manifest to {output_root / 'batch_manifest.json'}")
-    print(f"[08] Saved batch runner to {run_all_path}")
-    print(f"[08] Output root: {output_root}")
+    print(f"[08] Saved batch manifest to {output_root / 'batch_manifest.json'}", flush=True)
+    print(f"[08] Saved batch runner to {run_all_path}", flush=True)
+    print(f"[08] Output root: {output_root}", flush=True)
     if args.run_inference:
-        print("[08] Inference was executed for all prepared cases.")
+        print("[08] Inference was executed for all prepared cases.", flush=True)
     else:
-        print("[08] Track/previews only. Add --run-inference on the server to generate white-background teacher videos.")
+        print("[08] Track/previews only. Add --run-inference on the server to generate white-background teacher videos.", flush=True)
 
 
 if __name__ == "__main__":

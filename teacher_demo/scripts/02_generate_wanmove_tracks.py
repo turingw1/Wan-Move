@@ -6,9 +6,8 @@ import math
 from pathlib import Path
 import sys
 
-import cv2
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -42,10 +41,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate Wan-Move tracks.npy and visibility.npy with previews.")
     parser.add_argument("--config", default="teacher_demo/configs/demo_config.yaml")
     parser.add_argument("--targets", default="teacher_demo/work/targets/targets.json")
+    parser.add_argument("--keypoint-json", default="teacher_demo/work/tracks/manual_keypoints.json")
     parser.add_argument("--output-dir", default="teacher_demo/work/tracks")
     parser.add_argument("--preview-dir", default="teacher_demo/work/previews")
     parser.add_argument("--max-targets", type=int, default=5)
     parser.add_argument("--preview-only", action="store_true")
+    parser.add_argument("--mode", choices=["straight_emphasis", "video_targets"], default="straight_emphasis")
     parser.add_argument("--motion-region", nargs=4, type=float, default=[650, 840, 170, 360], metavar=("X0", "X1", "Y0", "Y1"))
     return parser.parse_args()
 
@@ -81,6 +82,35 @@ def smooth_sequence(initial_tip: np.ndarray, targets: list[np.ndarray], frame_nu
     return resample_points(tip_dense, frame_num)
 
 
+def straight_line_with_taps(initial_tip: np.ndarray, target_tip: np.ndarray, frame_num: int, motion_cfg: dict[str, float], demo_cfg: dict[str, float]) -> np.ndarray:
+    hold = max(1, int(motion_cfg["hold_frames"]))
+    move = max(2, int(motion_cfg["move_frames"]))
+    settle = max(2, int(motion_cfg["settle_frames"]))
+    tap_count = max(0, int(demo_cfg.get("tap_count", 2)))
+    tap_hold = max(1, int(demo_cfg.get("tap_hold_frames", 4)))
+    tap_move = max(2, int(demo_cfg.get("tap_move_frames", 4)))
+    tap_forward = float(demo_cfg.get("tap_forward_px", 12))
+
+    direction = target_tip - initial_tip
+    norm = float(np.linalg.norm(direction))
+    if norm < 1e-6:
+        direction = np.array([1.0, 0.0], dtype=np.float32)
+    else:
+        direction = direction / norm
+
+    frames: list[np.ndarray] = []
+    frames.extend([initial_tip.copy()] * hold)
+    frames.extend(interpolate_segment(initial_tip, target_tip, move).tolist())
+    frames.extend([target_tip.copy()] * tap_hold)
+    for _ in range(tap_count):
+        emphasize_tip = target_tip + direction * tap_forward
+        frames.extend(interpolate_segment(target_tip, emphasize_tip, tap_move).tolist())
+        frames.extend(interpolate_segment(emphasize_tip, target_tip, tap_move).tolist())
+        frames.extend([target_tip.copy()] * tap_hold)
+    frames.extend(interpolate_segment(np.array(frames[-1], dtype=np.float32), target_tip, settle).tolist())
+    return resample_points(np.array(frames, dtype=np.float32), frame_num)
+
+
 def draw_track_preview(base_image: np.ndarray, tracks: np.ndarray, visibility: np.ndarray, output_png: Path, output_mp4: Path) -> dict[str, object]:
     frame_num = tracks.shape[0]
     preview_frames: list[np.ndarray] = []
@@ -109,6 +139,47 @@ def draw_track_preview(base_image: np.ndarray, tracks: np.ndarray, visibility: n
     return write_rgb_video(output_mp4, preview_frames, fps=16.0)
 
 
+def draw_track_schematic(base_image: np.ndarray, tracks: np.ndarray, keypoints: dict[str, list[int]], output_path: Path) -> None:
+    font = ImageFont.load_default()
+    canvas = Image.fromarray(base_image.copy()).convert("RGB")
+    draw = ImageDraw.Draw(canvas)
+    track_names = [
+        "stick_tip",
+        "stick_mid_upper",
+        "stick_mid_lower",
+        "stick_handle",
+        "right_hand",
+        "right_elbow_anchor",
+        "body_anchor",
+    ]
+    for idx, name in enumerate(track_names[: tracks.shape[1]]):
+        color = COLOR_MAP[idx % len(COLOR_MAP)]
+        coords = [tuple(map(float, pt)) for pt in tracks[:, idx]]
+        if len(coords) > 1:
+            draw.line(coords, fill=color, width=3)
+        sx, sy = coords[0]
+        ex, ey = coords[-1]
+        draw.ellipse((sx - 6, sy - 6, sx + 6, sy + 6), fill=color, outline=(0, 0, 0), width=2)
+        draw.rectangle((ex - 6, ey - 6, ex + 6, ey + 6), outline=color, width=2)
+        draw.text((sx + 10, sy - 10), f"{name}:start", fill=color, font=font)
+        draw.text((ex + 10, ey + 4), f"{name}:end", fill=color, font=font)
+
+    for name, xy in keypoints.items():
+        x, y = xy
+        draw.text((x + 8, y + 8), name, fill=(0, 0, 0), font=font)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(output_path)
+
+
+def load_keypoints(config: dict[str, object], keypoint_json: str | Path) -> dict[str, list[int]]:
+    keypoint_path = Path(keypoint_json)
+    if keypoint_path.exists():
+        payload = load_json(keypoint_path)
+        return payload.get("teacher_keypoints", config["teacher_keypoints"])
+    return config["teacher_keypoints"]
+
+
 def main() -> None:
     args = parse_args()
     ensure_workdirs()
@@ -117,11 +188,10 @@ def main() -> None:
     if not image_path.exists():
         raise FileNotFoundError(f"Input image not found: {image_path}")
 
-    targets_payload = load_json(args.targets) if Path(args.targets).exists() else {"targets": []}
-    targets_data = targets_payload.get("targets", [])
     frame_num = int(config["frame_num"])
     motion_cfg = config["motion"]
-    keypoints = config["teacher_keypoints"]
+    demo_cfg = config.get("trajectory_demo", {})
+    keypoints = load_keypoints(config, args.keypoint_json)
 
     image = Image.open(image_path).convert("RGB")
     image_np = np.array(image)
@@ -133,28 +203,6 @@ def main() -> None:
         "y": [max(0.0, y0), min(float(height - 1), y1)],
     }
 
-    selected = targets_data[: max(1, args.max_targets)]
-    if not selected:
-        selected = [{"target_norm": [0.5, 0.5], "source": "fallback"}]
-
-    teacher_targets = []
-    for item in selected:
-        tx_norm, ty_norm = item["target_norm"]
-        target = np.array(
-            [
-                motion_region["x"][0] + tx_norm * (motion_region["x"][1] - motion_region["x"][0]),
-                motion_region["y"][0] + ty_norm * (motion_region["y"][1] - motion_region["y"][0]),
-            ],
-            dtype=np.float32,
-        )
-        initial_tip = np.array(keypoints["stick_tip_initial"], dtype=np.float32)
-        delta = target - initial_tip
-        delta_norm = float(np.linalg.norm(delta))
-        max_shift = float(motion_cfg["max_tip_shift_px"])
-        if delta_norm > max_shift > 0:
-            target = initial_tip + delta / delta_norm * max_shift
-        teacher_targets.append(target)
-
     initial_points = {
         "stick_tip": np.array(keypoints["stick_tip_initial"], dtype=np.float32),
         "stick_mid_upper": np.array(keypoints["stick_mid_upper"], dtype=np.float32),
@@ -165,7 +213,43 @@ def main() -> None:
         "body_anchor": np.array(keypoints["body_anchor"], dtype=np.float32),
     }
 
-    tip_path = smooth_sequence(initial_points["stick_tip"], teacher_targets, frame_num, motion_cfg)
+    initial_tip = initial_points["stick_tip"]
+    if args.mode == "video_targets":
+        targets_payload = load_json(args.targets) if Path(args.targets).exists() else {"targets": []}
+        targets_data = targets_payload.get("targets", [])
+        selected = targets_data[: max(1, args.max_targets)]
+        if not selected:
+            selected = [{"target_norm": [0.5, 0.5], "source": "fallback"}]
+
+        teacher_targets = []
+        for item in selected:
+            tx_norm, ty_norm = item["target_norm"]
+            target = np.array(
+                [
+                    motion_region["x"][0] + tx_norm * (motion_region["x"][1] - motion_region["x"][0]),
+                    motion_region["y"][0] + ty_norm * (motion_region["y"][1] - motion_region["y"][0]),
+                ],
+                dtype=np.float32,
+            )
+            delta = target - initial_tip
+            delta_norm = float(np.linalg.norm(delta))
+            max_shift = float(motion_cfg["max_tip_shift_px"])
+            if delta_norm > max_shift > 0:
+                target = initial_tip + delta / delta_norm * max_shift
+            teacher_targets.append(target)
+        target_tip = teacher_targets[-1]
+        tip_path = smooth_sequence(initial_tip, teacher_targets, frame_num, motion_cfg)
+    else:
+        target_tip = np.array(demo_cfg.get("tip_end", [815, 215]), dtype=np.float32)
+        target_tip[0] = np.clip(target_tip[0], motion_region["x"][0], motion_region["x"][1])
+        target_tip[1] = np.clip(target_tip[1], motion_region["y"][0], motion_region["y"][1])
+        delta = target_tip - initial_tip
+        delta_norm = float(np.linalg.norm(delta))
+        max_shift = float(motion_cfg["max_tip_shift_px"])
+        if delta_norm > max_shift > 0:
+            target_tip = initial_tip + delta / delta_norm * max_shift
+        tip_path = straight_line_with_taps(initial_tip, target_tip, frame_num, motion_cfg, demo_cfg)
+
     handle0 = initial_points["stick_handle"]
     tip0 = initial_points["stick_tip"]
     hand0 = initial_points["right_hand"]
@@ -226,6 +310,7 @@ def main() -> None:
 
     preview_png = preview_dir / "track_preview.png"
     preview_mp4 = preview_dir / "track_preview.mp4"
+    schematic_png = preview_dir / "track_schematic.png"
     preview_diag = {"ok": True}
     try:
         writer_result = draw_track_preview(image_np, tracks, visibility, preview_png, preview_mp4)
@@ -237,11 +322,27 @@ def main() -> None:
             "writer_probe": check_video_write_capability(preview_mp4, (height, width), fps=16.0),
         }
 
+    draw_track_schematic(image_np, tracks, keypoints, schematic_png)
     save_json(preview_dir / "track_preview_diagnostics.json", preview_diag)
+    save_json(
+        preview_dir / "track_generation_summary.json",
+        {
+            "mode": args.mode,
+            "frame_num": frame_num,
+            "motion_region": motion_region,
+            "initial_tip": initial_tip.tolist(),
+            "target_tip": target_tip.tolist(),
+            "output_tracks_shape": list(tracks_batched.shape),
+            "output_visibility_shape": list(visibility_batched.shape),
+            "keypoint_json": str(args.keypoint_json),
+            "schematic_png": str(schematic_png),
+        },
+    )
 
     print(f"[02] Saved tracks to {output_dir / 'tracks.npy'}")
     print(f"[02] Saved visibility to {output_dir / 'visibility.npy'}")
     print(f"[02] Saved preview image to {preview_png}")
+    print(f"[02] Saved track schematic to {schematic_png}")
     if preview_diag.get("ok"):
         print(f"[02] Saved preview video to {preview_mp4}")
     else:

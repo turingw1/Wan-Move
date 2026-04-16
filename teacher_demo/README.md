@@ -51,6 +51,23 @@ teacher_demo/configs/demo_config.yaml
 
 ## Full MVP Commands
 
+0. Preview and manually verify the initial keypoints before generating tracks:
+
+```bash
+python teacher_demo/scripts/01b_preview_initial_keypoints.py \
+  --config teacher_demo/configs/demo_config.yaml
+```
+
+This writes:
+
+```text
+teacher_demo/work/previews/initial_keypoints_overlay.png
+teacher_demo/work/tracks/manual_keypoints.json
+```
+
+If any point is not exactly on the stick / hand / elbow / body anchor, edit
+`teacher_demo/work/tracks/manual_keypoints.json` first.
+
 1. Extract slide segments:
 
 ```bash
@@ -64,26 +81,34 @@ python teacher_demo/scripts/00_extract_slide_segments.py \
 python teacher_demo/scripts/01_generate_targets.py
 ```
 
-3. Generate Wan-Move tracks and preview:
+3. Generate Wan-Move tracks and preview.
+
+For the current stick-motion debug pass, use the straight-line emphasis demo first:
 
 ```bash
 python teacher_demo/scripts/02_generate_wanmove_tracks.py \
   --config teacher_demo/configs/demo_config.yaml \
-  --targets teacher_demo/work/targets/targets.json
+  --keypoint-json teacher_demo/work/tracks/manual_keypoints.json \
+  --mode straight_emphasis \
+  --preview_only
 ```
 
 Track preview diagnostics will be written to:
 
 ```text
 teacher_demo/work/previews/track_preview_diagnostics.json
+teacher_demo/work/previews/track_schematic.png
+teacher_demo/work/previews/track_generation_summary.json
 ```
 
-If you only want the tracks and preview artifacts:
+If you want to use slide targets later:
 
 ```bash
 python teacher_demo/scripts/02_generate_wanmove_tracks.py \
   --config teacher_demo/configs/demo_config.yaml \
+  --keypoint-json teacher_demo/work/tracks/manual_keypoints.json \
   --targets teacher_demo/work/targets/targets.json \
+  --mode video_targets \
   --preview_only
 ```
 
@@ -133,9 +158,12 @@ python teacher_demo/scripts/06_make_preview_grid.py \
 - `teacher_demo/work/targets/targets.json`
 - `teacher_demo/work/tracks/tracks.npy`
 - `teacher_demo/work/tracks/visibility.npy`
+- `teacher_demo/work/previews/initial_keypoints_overlay.png`
 - `teacher_demo/work/previews/track_preview.png`
 - `teacher_demo/work/previews/track_preview.mp4`
+- `teacher_demo/work/previews/track_schematic.png`
 - `teacher_demo/work/previews/track_preview_diagnostics.json`
+- `teacher_demo/work/previews/track_generation_summary.json`
 - `teacher_demo/work/tracks/track_reliability_report.json`
 - `teacher_demo/work/wanmove_outputs/teacher_motion.mp4`
 - `teacher_demo/work/foreground/frames_rgba/*.png`

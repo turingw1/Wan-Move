@@ -11,6 +11,29 @@ This directory contains a minimal end-to-end demo pipeline that:
 
 Run every command from the repository root.
 
+## Server Layout Assumption
+
+This MVP follows the same storage convention as the rest of the deployment docs:
+
+- workspace repo: `~/workspace/$NAME/Wan-Move`
+- cache root: `/cache/$NAME/Wan-Move`
+
+Before running the demo, export at least:
+
+```bash
+export NAME="Zhengwei"   # replace with your own identifier
+export WAN_MOVE_ROOT="$HOME/workspace/$NAME/Wan-Move"
+export WAN_MOVE_CACHE="/cache/$NAME/Wan-Move"
+```
+
+The default demo config uses:
+
+```text
+${WAN_MOVE_CACHE}/models/Wan-Move-14B-480P
+```
+
+for `ckpt_dir`, so `WAN_MOVE_CACHE` must be set in the shell before running the scripts.
+
 ## Expected Inputs
 
 - `teacher_with_stick.png`

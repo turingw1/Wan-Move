@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import subprocess
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +34,16 @@ def ensure_workdirs() -> None:
         path.mkdir(parents=True, exist_ok=True)
 
 
+def expand_config_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: expand_config_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [expand_config_value(v) for v in value]
+    if isinstance(value, str):
+        return os.path.expanduser(os.path.expandvars(value))
+    return value
+
+
 def load_config(config_path: str | Path) -> dict[str, Any]:
     path = Path(config_path)
     if not path.is_absolute():
@@ -41,11 +51,11 @@ def load_config(config_path: str | Path) -> dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
     with path.open("r", encoding="utf-8") as handle:
-        return yaml.safe_load(handle)
+        return expand_config_value(yaml.safe_load(handle))
 
 
 def repo_path(value: str | Path) -> Path:
-    path = Path(value)
+    path = Path(os.path.expanduser(os.path.expandvars(str(value))))
     return path if path.is_absolute() else REPO_ROOT / path
 
 

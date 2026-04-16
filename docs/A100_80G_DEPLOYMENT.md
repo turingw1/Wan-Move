@@ -52,7 +52,7 @@
 假设：
 
 - 个人标识：`$NAME`
-- 代码目录：`/cache/$NAME/workspace/Wan-Move`
+- 代码目录：`~/workspace/$NAME/Wan-Move`
 - 缓存目录：`/cache/$NAME/Wan-Move`
 
 这里使用 `$NAME` 作为个人目录前缀，因为服务器上大家可能共用同一个系统用户，但会用不同名字区分各自目录。
@@ -61,9 +61,9 @@
 
 ```bash
 export NAME="Zhengwei"  # 替换成你的名字或标识
-mkdir -p /cache/$NAME/workspace
+mkdir -p ~/workspace/$NAME
 mkdir -p /cache/$NAME/Wan-Move/{conda_envs,hf,torch,torch_extensions,triton,warp,tmp,logs,wheels,src,ckpts,models,outputs}
-cd /cache/$NAME/workspace
+cd ~/workspace/$NAME
 git clone https://github.com/turingw1/Wan-Move.git
 cd Wan-Move
 ```
@@ -107,7 +107,7 @@ conda activate /cache/$NAME/Wan-Move/conda_envs/wan-move
 
 ```bash
 export NAME="Zhengwei"  # 替换成你的名字或标识
-export WAN_MOVE_ROOT=/cache/$NAME/workspace/Wan-Move
+export WAN_MOVE_ROOT=$HOME/workspace/$NAME/Wan-Move
 export WAN_MOVE_CACHE=/cache/$NAME/Wan-Move
 
 export HF_HOME=$WAN_MOVE_CACHE/hf
@@ -466,7 +466,7 @@ http://127.0.0.1:7860
 conda activate /cache/$NAME/Wan-Move/conda_envs/wan-move
 
 export NAME=<your_name>
-export WAN_MOVE_ROOT=/cache/$NAME/workspace/Wan-Move
+export WAN_MOVE_ROOT=$HOME/workspace/$NAME/Wan-Move
 export WAN_MOVE_CACHE=/cache/$NAME/Wan-Move
 export HF_HOME=$WAN_MOVE_CACHE/hf
 export HUGGINGFACE_HUB_CACHE=$WAN_MOVE_CACHE/hf/hub
@@ -610,7 +610,7 @@ torchrun --nproc_per_node=8 generate.py \
 tmux new -s wan-move
 conda activate /cache/$NAME/Wan-Move/conda_envs/wan-move
 export NAME=<your_name>
-export WAN_MOVE_ROOT=/cache/$NAME/workspace/Wan-Move
+export WAN_MOVE_ROOT=$HOME/workspace/$NAME/Wan-Move
 export WAN_MOVE_CACHE=/cache/$NAME/Wan-Move
 export HF_HOME=$WAN_MOVE_CACHE/hf
 export HUGGINGFACE_HUB_CACHE=$WAN_MOVE_CACHE/hf/hub
@@ -732,7 +732,7 @@ export NAME=<your_name>
 conda create -y -p /cache/$NAME/Wan-Move/conda_envs/wan-move python=3.10
 conda activate /cache/$NAME/Wan-Move/conda_envs/wan-move
 
-export WAN_MOVE_ROOT=/cache/$NAME/workspace/Wan-Move
+export WAN_MOVE_ROOT=$HOME/workspace/$NAME/Wan-Move
 export WAN_MOVE_CACHE=/cache/$NAME/Wan-Move
 export HF_HOME=$WAN_MOVE_CACHE/hf
 export HUGGINGFACE_HUB_CACHE=$WAN_MOVE_CACHE/hf/hub
